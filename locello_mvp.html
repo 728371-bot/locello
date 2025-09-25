@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Locello — Web MVP</title>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    body { margin: 0; background:#0b0f14; color:#e8eef7; }
+    header { padding: 24px; border-bottom: 1px solid #1f2937; display:flex; justify-content:space-between; align-items:center; }
+    h1 { margin: 0; font-size: 20px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px 24px 64px; }
+    .controls { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; }
+    .controls input, .controls select { padding:10px 12px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:#e8eef7; }
+    .radius { display:flex; gap:8px; align-items:center; }
+    .grid { margin-top: 16px; display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
+    .card { background:#0f172a; border:1px solid #1f2937; border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+    .card img { width:100%; height:180px; object-fit:cover; background:#111827; }
+    .card .pad { padding:12px; display:flex; flex-direction:column; gap:6px; }
+    .muted { color:#94a3b8; font-size: 12px; }
+    .row { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .pill { padding:4px 8px; font-size:12px; border-radius:999px; background:#111827; border:1px solid #1f2937; color:#cbd5e1; }
+    .bar { display:flex; gap:8px; align-items:center; }
+    button { background:#2563eb; color:white; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    button.secondary { background:#111827; border:1px solid #1f2937; color:#cbd5e1; }
+    dialog::backdrop { background: rgba(0,0,0,.6); }
+    dialog { border:none; border-radius:16px; padding:0; background:#0f172a; color:#e8eef7; width:min(560px, 92vw); }
+    .dpad { padding:16px; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .full { grid-column: 1 / -1; }
+    input[type="range"] { accent-color:#2563eb; }
+    footer { position: fixed; left:0; right:0; bottom:0; padding:10px 16px; backdrop-filter: blur(8px); background: rgba(2,6,23,0.6); border-top:1px solid #1f2937; display:flex; gap:8px; justify-content:center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Locello — buy & sell nearby</h1>
+    <div class="bar">
+      <button id="newBtn">+ Post Item</button>
+      <button id="tipsBtn" class="secondary">Safety Tips</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      <input id="q" placeholder="Search items… (e.g., dresser, AirPods)" />
+      <select id="cat">
+        <option>All</option>
+        <option>Electronics</option>
+        <option>Furniture</option>
+        <option>Books</option>
+        <option>Clothing</option>
+        <option>Sports</option>
+      </select>
+      <div class="radius">
+        <span class="muted">Radius</span>
+        <input id="r" type="range" min="1" max="40" step="1" value="12" />
+        <span id="rLabel" class="pill">12 km</span>
+      </div>
+    </div>
+
+    <p class="muted" id="geoStatus">Fetching your location…</p>
+
+    <div class="grid" id="list">
+      <!-- cards render here -->
+    </div>
+  </div>
+
+  <!-- Post Item Modal -->
+  <dialog id="newDialog">
+    <form method="dialog">
+      <div class="dpad">
+        <h3 style="margin:0 0 8px 0">Post a new item</h3>
+        <div class="grid2">
+          <input id="titleIn" placeholder="Title (e.g., Beach Cruiser Bike)" />
+          <input id="priceIn" placeholder="Price (e.g., 120)" type="number" />
+          <select id="catIn">
+            <option>Electronics</option>
+            <option>Furniture</option>
+            <option>Books</option>
+            <option>Clothing</option>
+            <option>Sports</option>
+          </select>
+          <select id="condIn">
+            <option>New</option>
+            <option>Like New</option>
+            <option>Very Good</option>
+            <option>Good</option>
+            <option>Fair</option>
+          </select>
+          <input id="imgIn" placeholder="Image URL (optional)" class="full" />
+          <textarea id="descIn" placeholder="Description" rows="4" class="full" style="resize:vertical; padding:10px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:#e8eef7;"></textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+          <button class="secondary" value="cancel">Cancel</button>
+          <button id="saveBtn" value="default">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Safety Tips Modal -->
+  <dialog id="tipsDialog">
+    <div class="dpad">
+      <h3 style="margin:0 0 8px 0">Safety Tips</h3>
+      <ul>
+        <li>Meet in public, well-lit places; bring a friend if possible.</li>
+        <li>Use cash or trusted payment apps; avoid wire transfers.</li>
+        <li>Inspect items in person before paying.</li>
+        <li>Trust your instincts; walk away if something feels off.</li>
+      </ul>
+      <div style="display:flex; justify-content:flex-end;">
+        <button id="tipsClose" class="secondary">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <footer>
+    <span class="muted">Locello MVP — data is stored locally on your device.</span>
+  </footer>
+
+  <script>
+    // --- Utilities ---
+    const $ = (sel) => document.querySelector(sel);
+    const km = (a, b) => {
+      const R = 6371;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLon = (b.lng - a.lng) * Math.PI / 180;
+      const lat1 = a.lat * Math.PI / 180;
+      const lat2 = b.lat * Math.PI / 180;
+      const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+
+    // --- Mock seed data ---
+    const seed = [
+      { id: crypto.randomUUID(), title: "IKEA Malm Dresser (White)", price: 60, category: "Furniture", condition: "Good", description: "6-drawer dresser, minor scuffs. Pickup only.", img: "https://images.unsplash.com/photo-1620656858354-0db7aa8148c1?q=80&w=1600&auto=format&fit=crop", lat: 29.6602, lng: -82.3290, postedAt: "2025-09-15T13:05:00Z" },
+      { id: crypto.randomUUID(), title: "AirPods Pro (2nd Gen)", price: 120, category: "Electronics", condition: "Like New", description: "Barely used, includes case and tips.", img: "https://images.unsplash.com/photo-1585386959984-a41552231658?q=80&w=1600&auto=format&fit=crop", lat: 29.6430, lng: -82.3470, postedAt: "2025-09-20T17:30:00Z" },
+      { id: crypto.randomUUID(), title: "Textbooks: Econ & Accounting Bundle", price: 45, category: "Books", condition: "Very Good", description: "Two semesters worth. Highlighting in a few chapters.", img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop", lat: 29.6710, lng: -82.3090, postedAt: "2025-09-10T11:10:00Z" },
+      { id: crypto.randomUUID(), title: "Beach Cruiser Bike", price: 140, category: "Sports", condition: "Good", description: "Single speed, smooth ride.", img: "https://images.unsplash.com/photo-1518659526055-c6c0c0dfe6ae?q=80&w=1600&auto=format&fit=crop", lat: 29.6550, lng: -82.3110, postedAt: "2025-09-18T09:20:00Z" }
+    ];
+
+    // --- State ---
+    const state = {
+      items: JSON.parse(localStorage.getItem('locello_items') || 'null') || seed,
+      me: null,
+      radius: 12,
+      q: '',
+      cat: 'All'
+    };
+
+    function save() { localStorage.setItem('locello_items', JSON.stringify(state.items)); }
+
+    // --- Geolocation ---
+    const geoP = new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition((pos) => {
+        state.me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        $('#geoStatus').textContent = `Your location is set. Filtering within ${state.radius} km.`;
+        render();
+        resolve(state.me);
+      }, () => {
+        $('#geoStatus').textContent = 'Location denied — showing all items (use radius after allowing location).';
+        render();
+        resolve(null);
+      });
+    });
+
+    // --- Rendering ---
+    function render() {
+      $('#rLabel').textContent = state.radius + ' km';
+      const list = $('#list');
+      list.innerHTML = '';
+
+      const items = [...state.items]
+        .filter(it => state.q ? it.title.toLowerCase().includes(state.q.toLowerCase()) : true)
+        .filter(it => state.cat === 'All' ? true : it.category === state.cat)
+        .filter(it => state.me ? km(state.me, {lat: it.lat, lng: it.lng}) <= state.radius : true)
+        .sort((a,b) => new Date(b.postedAt) - new Date(a.postedAt));
+
+      if (items.length === 0) {
+        list.innerHTML = `<p class="muted">No items match your filters yet.</p>`;
+        return;
+      }
+
+      for (const it of items) {
+        const dist = state.me ? ` • ~${km(state.me, {lat: it.lat, lng: it.lng}).toFixed(1)} km` : '';
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.innerHTML = `
+          <img src="${it.img || 'https://images.unsplash.com/photo-1518779578993-ec3579fee39f?q=80&w=1600&auto=format&fit=crop'}" alt="${it.title}">
+          <div class="pad">
+            <div class="row"><strong>${it.title}</strong><span class="pill">$${it.price}</span></div>
+            <div class="muted">${it.condition} • ${it.category}${dist}</div>
+            <div class="muted">${new Date(it.postedAt).toLocaleString()}</div>
+            <p style="margin:6px 0 0 0;">${it.description}</p>
+            <div class="row" style="margin-top:8px;">
+              <button class="secondary" data-action="copy">Copy Details</button>
+              <button data-action="contact">Message Seller</button>
+            </div>
+          </div>
+        `;
+        el.querySelector('[data-action="copy"]').onclick = () => {
+          navigator.clipboard.writeText(`${it.title} — $${it.price}
+${it.description}`);
+        };
+        el.querySelector('[data-action="contact"]').onclick = () => {
+          alert('Messaging is a stub in the MVP. We can connect email/WhatsApp later.');
+        };
+        list.appendChild(el);
+      }
+    }
+
+    // --- Events ---
+    $('#q').addEventListener('input', e => { state.q = e.target.value; render(); });
+    $('#cat').addEventListener('change', e => { state.cat = e.target.value; render(); });
+    $('#r').addEventListener('input', e => { state.radius = parseInt(e.target.value, 10); render(); });
+
+    // New item modal
+    const newDialog = $('#newDialog');
+    $('#newBtn').onclick = () => newDialog.showModal();
+    $('#saveBtn').onclick = (ev) => {
+      ev.preventDefault();
+      const title = $('#titleIn').value.trim();
+      const price = parseFloat($('#priceIn').value || '0');
+      const category = $('#catIn').value;
+      const condition = $('#condIn').value;
+      const img = $('#imgIn').value.trim();
+      const description = $('#descIn').value.trim();
+      if (!title || !price) { alert('Title and price are required.'); return; }
+      const coord = state.me || { lat: 29.6516, lng: -82.3248 }; // Gainesville fallback
+      state.items.push({ id: crypto.randomUUID(), title, price, category, condition, description, img, lat: coord.lat, lng: coord.lng, postedAt: new Date().toISOString() });
+      save();
+      newDialog.close();
+      $('#titleIn').value = $('#priceIn').value = $('#imgIn').value = $('#descIn').value = '';
+      render();
+    };
+
+    // Safety tips dialog
+    const tipsDialog = $('#tipsDialog');
+    $('#tipsBtn').onclick = () => tipsDialog.showModal();
+    $('#tipsClose').onclick = () => tipsDialog.close();
+
+    // Init
+    render();
+  </script>
+</body>
+</html>
